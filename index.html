@@ -42,7 +42,8 @@ header.top{background:var(--surface);border-bottom:1px solid var(--line);positio
 .brand{display:flex;flex-direction:column;gap:2px;margin-right:auto;min-width:0}
 .brand small{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--soga);font-weight:700}
 .brand h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
-.views{display:flex;background:var(--sunk);border-radius:999px;padding:3px}
+.views{display:flex;background:var(--sunk);border-radius:999px;padding:3px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.views button{white-space:nowrap;flex:none}
 .views button{border:0;background:none;padding:7px 14px;border-radius:999px;font-weight:600;color:var(--muted)}
 .views button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 
@@ -154,6 +155,33 @@ dialog#wa-dialog::backdrop{background:rgba(20,16,12,.45)}
 .wa-box .small{font-size:12px}
 #wa-text{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font:12.5px/1.5 var(--mono);resize:vertical;min-height:240px}
 .wa-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+@media (max-width:720px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile small{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tile b{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--muted)}
+.tile.bad b{color:var(--bad)} .tile.warn b{color:var(--warn)}
+td.num{font-variant-numeric:tabular-nums}
+#rekaptable{min-width:880px;table-layout:fixed}
+#rekaptable th,#rekaptable td{text-align:left}
+#rekaptable th:nth-child(1){width:17%} #rekaptable th:nth-child(2){width:9%} #rekaptable th:nth-child(3){width:9%}
+#rekaptable th:nth-child(4),#rekaptable th:nth-child(5){width:8%}
+.strip{display:flex;gap:2px;width:100%}
+.strip i.sc{flex:1 1 0;min-width:0;width:0;padding:0;height:16px;border-radius:3px;background:var(--sunk)}
+.strip i.sc-hi{background:var(--good)} .strip i.sc-mid{background:var(--warn)} .strip i.sc-lo{background:var(--bad)}
+.strip i.sc-future{background:transparent;border:1px dashed var(--line)}
+.strip i.sc-sun{opacity:.45}
+tr.total .strip i.sc-none{background:var(--line)}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:14px}
+.filters div{display:flex;flex-direction:column;gap:4px}
+.filters label{font-size:12px;font-weight:600;color:var(--muted)}
+.filters input,.filters select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;font-size:13px}
+table.hist{min-width:760px}
+table.hist th,table.hist td{text-align:left;vertical-align:top}
+table.hist td.when{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted)}
+table.hist td.what small{display:block;color:var(--muted);font-size:12px}
+.more{display:flex;justify-content:center;padding:14px 0}
 .linkbtn{background:none!important;color:var(--indigo)!important;margin-top:4px!important;padding:6px!important;font-weight:600!important;font-size:13px}
 .memberform{display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .memberform div{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -191,7 +219,8 @@ table.members td,table.members th{text-align:left}
     <div class="views" role="group" aria-label="Tampilan">
       <button id="v-harian" aria-pressed="true">Harian</button>
       <button id="v-rutin" aria-pressed="false">Tugas rutin</button>
-      <button id="v-rekap" aria-pressed="false">Rekap mingguan</button>
+      <button id="v-rekap" aria-pressed="false">Rekap bulanan</button>
+      <button id="v-riwayat" aria-pressed="false" hidden>Riwayat</button>
       <button id="v-anggota" aria-pressed="false" hidden>Kelola anggota</button>
     </div>
     <div class="account"><span id="whoami"></span><button class="textbtn" id="logout">Keluar</button></div>
@@ -229,13 +258,14 @@ table.members td,table.members th{text-align:left}
   <section id="view-rekap" class="rekap" hidden>
     <div class="daybar" style="padding-top:0">
       <div class="nav">
-        <button class="iconbtn" id="wprev" aria-label="Minggu sebelumnya">‹</button>
-        <button class="iconbtn" id="wnext" aria-label="Minggu berikutnya">›</button>
+        <button class="iconbtn" id="wprev" aria-label="Bulan sebelumnya">‹</button>
+        <button class="iconbtn" id="wnext" aria-label="Bulan berikutnya">›</button>
       </div>
       <h2 class="daytitle" id="weektitle">—</h2>
-      <button class="textbtn" id="thisweek">Minggu ini</button>
+      <button class="textbtn" id="thisweek">Bulan ini</button>
     </div>
-    <p class="sub">Angka di tiap sel: tugas selesai / total tugas hari itu. Persentase dihitung dari semua tugas divisi selama seminggu.</p>
+    <p class="sub">Hanya hari yang sudah berjalan yang dihitung. Kotak per hari: hijau ≥90% selesai, kuning 70–89%, merah di bawah 70%, abu-abu tidak ada tugas.</p>
+    <div class="tiles" id="monthsum"></div>
     <div class="tablewrap"><table id="rekaptable"></table></div>
     <div class="issues" id="issues"></div>
   </section>
@@ -244,6 +274,20 @@ table.members td,table.members th{text-align:left}
     <p class="sub" id="rutinhint">Tugas di sini otomatis muncul di checklist setiap hari kerja (Senin–Sabtu). Tugas rutin baru langsung muncul hari ini. Mengganti nama, menjeda, atau menghapus berlaku mulai hari berikutnya; tugas yang sudah muncul hari ini diubah di tampilan Harian.</p>
     <p class="notice" id="rnotice" hidden></p>
     <div class="grid" id="rutingrid"></div>
+  </section>
+
+  <section id="view-riwayat" class="rekap" hidden>
+    <h2>Riwayat perubahan</h2>
+    <p class="sub">Semua perubahan tercatat otomatis oleh database: siapa, kapan, dan apa yang diubah. Catatan ini tidak bisa diubah atau dihapus dari aplikasi.</p>
+    <div class="filters">
+      <div><label for="h-date">Tanggal kejadian</label><input type="date" id="h-date"></div>
+      <div><label for="h-who">Orang</label><select id="h-who"><option value="">Semua orang</option></select></div>
+      <div><label for="h-obj">Jenis</label><select id="h-obj"><option value="">Semua</option><option value="tugas">Tugas harian</option><option value="tugas rutin">Tugas rutin</option><option value="anggota">Anggota</option></select></div>
+      <button type="button" class="textbtn" id="h-reset">Hapus filter</button>
+    </div>
+    <p class="notice" id="hnotice" hidden></p>
+    <div class="tablewrap"><table id="histtable" class="hist"></table></div>
+    <div class="more"><button type="button" class="textbtn" id="h-more" hidden>Muat lebih banyak</button></div>
   </section>
 
   <section id="view-anggota" class="rekap" hidden>

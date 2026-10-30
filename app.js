@@ -33,12 +33,12 @@ const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
 let canWrite = false, isAdmin = false, myEmail = '';
 let signupMode = false;
 let day = iso(new Date());
-let week = monday(day);
-let tasks = [], weekTasks = [];
+let month = day.slice(0,7); // 'YYYY-MM'
+let tasks = [], monthTasks = [];
 let pendingDelete = null;
 const openNotes = new Set();
 let view = 'harian';
-try { const v = localStorage.getItem('oerip-pa-view'); if (v === 'rekap' || v === 'anggota' || v === 'rutin') view = v; } catch {}
+try { const v = localStorage.getItem('oerip-pa-view'); if (['rekap','anggota','rutin','riwayat'].includes(v)) view = v; } catch {}
 let channel = null, refreshTimer = null;
 
 const draft = {
@@ -46,9 +46,10 @@ const draft = {
   set(k, v){ try { v ? localStorage.setItem('oerip-draft:' + k, v) : localStorage.removeItem('oerip-draft:' + k); } catch {} },
 };
 function notice(msg, kind){ const n = $('notice'); if (!msg) { n.hidden = true; return; } n.textContent = msg; n.dataset.kind = kind || ''; n.hidden = false; }
-function handleErr(e){
+function handleErr(e, kind){
   console.error(e);
   const msg = (e && (e.message || '')) + '';
+  if (kind === 'load') { notice('Data belum termuat karena koneksi bermasalah. Periksa internet lalu muat ulang halaman.', 'err'); return; }
   if (/row-level security|permission|42501/i.test(msg)) notice('Perubahan ditolak. Akun ini hanya punya akses lihat.', 'err');
   else if (/JWT|session/i.test(msg)) notice('Sesi login habis. Muat ulang halaman lalu masuk lagi.', 'err');
   else notice('Perubahan belum tersimpan karena koneksi bermasalah. Coba lagi.', 'err');
@@ -58,7 +59,7 @@ function handleErr(e){
 const fromRow = r => ({id:r.id, tpl:r.template_id, date:r.tanggal, div:r.divisi, text:r.teks, done:r.selesai, status:r.status, note:r.catatan, by:r.diubah_oleh, createdAt:r.dibuat, updatedAt:r.diubah});
 let routineDone = new Set();
 async function ensureRoutine(d){
-  if (!canWrite || routineDone.has(d) || d < iso(new Date()) || parse(d).getDay() === 0) return;
+  if (!canWrite || routineDone.has(d) || d !== iso(new Date()) || parse(d).getDay() === 0) return;
   routineDone.add(d);
   const { error } = await sb.rpc('buat_tugas_rutin', { p_tanggal: d });
   if (error) { routineDone.delete(d); console.error(error); }
@@ -67,16 +68,28 @@ async function loadDay(){
   const d = day;
   await ensureRoutine(d);
   if (d !== day) return;
-  const { data, error } = await sb.from('tasks').select('*').eq('tanggal', day).order('dibuat');
-  if (error) return handleErr(error);
+  const { data, error } = await sb.from('tasks').select('*').eq('tanggal', d).order('dibuat');
+  if (d !== day) return;          // the user moved to another date meanwhile
+  if (error) return handleErr(error, 'load');
   tasks = data.map(fromRow); renderDay();
 }
-async function loadWeek(){
-  const { data, error } = await sb.from('tasks').select('*').gte('tanggal', week).lte('tanggal', addDays(week,6));
-  if (error) return handleErr(error);
-  weekTasks = data.map(fromRow); renderWeek();
+const monthStart = m => m + '-01';
+const monthEnd = m => { const [y,mo] = m.split('-').map(Number); return iso(new Date(y, mo, 0)); };
+const addMonths = (m, n) => { const [y,mo] = m.split('-').map(Number); const d = new Date(y, mo-1+n, 1); return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; };
+let monthReq = 0;
+async function loadMonth(){
+  const req = ++monthReq, m = month, rows = [], PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb.from('tasks').select('id,tanggal,divisi,teks,selesai,status,catatan,template_id,dibuat,diubah,diubah_oleh')
+      .gte('tanggal', monthStart(m)).lte('tanggal', monthEnd(m)).order('id').range(from, from + PAGE - 1);
+    if (error) return handleErr(error, 'load');
+    rows.push(...data);
+    if (data.length < PAGE) break;
+  }
+  if (req !== monthReq) return;   // a newer month was requested meanwhile
+  monthTasks = rows.map(fromRow); renderMonth();
 }
-function refreshSoon(){ clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { loadDay(); if (view === 'rekap') loadWeek(); }, 250); }
+function refreshSoon(){ clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { loadDay(); if (view === 'rekap') loadMonth(); }, 250); }
 async function addTask(div, text){
   text = (text||'').trim(); if (!text) return;
   const { error } = await sb.from('tasks').insert({tanggal: day, divisi: div, teks: text});
@@ -99,11 +112,11 @@ async function copyPrev(){
   try {
     let src = null;
     for (let i = 1; i <= 7 && !src; i++) {
-      const { data, error } = await sb.from('tasks').select('divisi,teks').eq('tanggal', addDays(day,-i)).order('dibuat');
+      const { data, error } = await sb.from('tasks').select('divisi,teks').eq('tanggal', addDays(day,-i)).is('template_id', null).order('dibuat');
       if (error) throw error;
       if (data.length) src = data;
     }
-    if (!src) { notice('Tidak ada tugas di 7 hari terakhir untuk disalin.'); return; }
+    if (!src) { notice('Tidak ada tugas khusus (non-rutin) di 7 hari terakhir untuk disalin.'); return; }
     const { error } = await sb.from('tasks').insert(src.map(r => ({tanggal: day, divisi: r.divisi, teks: r.teks})));
     if (error) throw error;
     notice(`${src.length} tugas disalin. Status dan centang dimulai dari awal.`);
@@ -131,6 +144,10 @@ function renderDay(){
   if (k) c.append(el('span',{class:'flag k',text:`${k} kuning`}));
   if (m) c.append(el('span',{class:'flag m',text:`${m} merah`}));
   $('copyprev').hidden = !(canWrite && total === 0);
+  const today = iso(new Date());
+  if (!total && day > today) notice('Tugas rutin untuk tanggal ini muncul otomatis pada harinya. Tugas khusus bisa ditambahkan sekarang.');
+  else if (!total && day === today && !canWrite) notice('Tugas rutin hari ini muncul setelah PA, CEO, atau Vice CEO membuka checklist.');
+  else if ($('notice').dataset.kind !== 'err' && /muncul otomatis|muncul setelah/.test($('notice').textContent)) notice('');
 
   const grid = $('grid'); grid.innerHTML = '';
   for (const d of DIVS) {
@@ -190,56 +207,81 @@ function taskRow(t){
   return li;
 }
 
-/* ---------- weekly view ---------- */
+/* ---------- monthly view ---------- */
 function pctPill(done, tot){
   if (!tot) return el('span',{class:'by',text:'—'});
   const p = Math.round(done/tot*100);
   return el('span',{class:'pct ' + (p>=90?'hi':p>=70?'mid':'lo'), text:`${p}%`});
 }
-function renderWeek(){
-  const a = parse(week), b = parse(addDays(week,6));
+function renderMonth(){
+  const today = iso(new Date());
+  const [y, mo] = month.split('-').map(Number);
   $('weektitle').innerHTML = '';
-  $('weektitle').append(el('span',{text: week === monday(iso(new Date())) ? 'Minggu ini' : 'Minggu'}),
-    document.createTextNode(`${a.getDate()} ${BULAN[a.getMonth()].slice(0,3)} – ${b.getDate()} ${BULAN[b.getMonth()].slice(0,3)} ${b.getFullYear()}`));
-  const days = Array.from({length:6}, (_,i) => addDays(week, i));
-  if (weekTasks.some(t => t.date === addDays(week,6))) days.push(addDays(week,6));
+  $('weektitle').append(el('span',{text: month === today.slice(0,7) ? 'Bulan ini' : 'Bulan'}), document.createTextNode(`${BULAN[mo-1]} ${y}`));
+  $('thisweek').disabled = month === today.slice(0,7);
+  $('wnext').disabled = month >= today.slice(0,7);
+
+  // only days that have already happened count toward the recap
+  const counted = monthTasks.filter(t => t.date <= today);
+  const allDays = []; for (let d = monthStart(month); d <= monthEnd(month); d = addDays(d,1)) allDays.push(d);
+  const workDays = [...new Set(counted.map(t => t.date))].length;
+  const done = counted.filter(t => t.done).length, total = counted.length;
+  const red = counted.filter(t => t.status === 'merah').length, yellow = counted.filter(t => t.status === 'kuning').length;
+
+  const sum = $('monthsum'); sum.innerHTML = '';
+  const tile = (label, value, sub, cls) => el('div',{class:'tile' + (cls ? ' ' + cls : '')}, el('small',{text:label}), el('b',{text:value}), sub ? el('span',{text:sub}) : null);
+  sum.append(
+    tile('Tugas selesai', total ? `${Math.round(done/total*100)}%` : '—', total ? `${done} dari ${total} tugas` : 'Belum ada data'),
+    tile('Hari tercatat', String(workDays), 'hari dengan tugas di checklist'),
+    tile('Merah', String(red), 'tugas terhambat', red ? 'bad' : ''),
+    tile('Kuning', String(yellow), 'tugas berisiko', yellow ? 'warn' : ''));
+
+  const cellClass = (list, d) => {
+    if (d > today) return 'sc sc-future';
+    if (!list.length) return 'sc sc-none';
+    const p = list.filter(x => x.done).length / list.length;
+    return 'sc ' + (p >= .9 ? 'sc-hi' : p >= .7 ? 'sc-mid' : 'sc-lo');
+  };
+  const strip = (filterFn, label) => {
+    const wrap = el('div',{class:'strip', role:'img', 'aria-label': label});
+    for (const d of allDays) {
+      const l = counted.filter(x => x.date === d && filterFn(x));
+      const dd = parse(d);
+      const tip = `${HARI[dd.getDay()]} ${dd.getDate()}: ` + (d > today ? 'belum terjadi' : l.length ? `${l.filter(x=>x.done).length}/${l.length} selesai` : 'tidak ada tugas');
+      wrap.append(el('i',{class: cellClass(l, d) + (dd.getDay() === 0 ? ' sc-sun' : ''), title: tip}));
+    }
+    return wrap;
+  };
 
   const t = $('rekaptable'); t.innerHTML = '';
-  const head = el('tr',{}, el('th',{text:'Divisi'}));
-  for (const d of days) { const dd = parse(d); head.append(el('th',{text:`${HARI[dd.getDay()].slice(0,3)} ${dd.getDate()}`})); }
-  head.append(el('th',{text:'Selesai'}), el('th',{text:'Status'}));
-  t.append(el('thead',{}, head));
-  const body = el('tbody'); let gD=0, gT=0;
+  t.append(el('thead',{}, el('tr',{}, el('th',{text:'Divisi'}), el('th',{text:'Selesai'}), el('th',{text:'%'}),
+    el('th',{text:'Merah'}), el('th',{text:'Kuning'}), el('th',{class:'stripcol', text:`Per hari (1–${allDays.length})`}))));
+  const body = el('tbody');
   for (const dv of DIVS) {
-    const tr = el('tr',{}, el('td',{text:dv.n})); let done=0, tot=0, k=0, m=0;
-    for (const d of days) {
-      const l = weekTasks.filter(x => x.div===dv.k && x.date===d), dn = l.filter(x=>x.done).length;
-      done += dn; tot += l.length; k += l.filter(x=>x.status==='kuning').length; m += l.filter(x=>x.status==='merah').length;
-      tr.append(l.length ? el('td',{class:'day'}, el('b',{text:`${dn}/${l.length}`})) : el('td',{class:'none',text:'—'}));
-    }
-    gD+=done; gT+=tot;
-    const fl = el('div',{class:'flags'});
-    if (k) fl.append(el('span',{class:'flag k',text:`${k} K`}));
-    if (m) fl.append(el('span',{class:'flag m',text:`${m} M`}));
-    if (!k && !m) fl.append(el('span',{class:'by',text: tot ? 'aman' : '—'}));
-    tr.append(el('td',{}, pctPill(done,tot)), el('td',{}, fl)); body.append(tr);
+    const l = counted.filter(x => x.div === dv.k), dn = l.filter(x => x.done).length;
+    const m = l.filter(x => x.status === 'merah').length, k = l.filter(x => x.status === 'kuning').length;
+    body.append(el('tr',{}, el('td',{text:dv.n}), el('td',{class:'num',text: l.length ? `${dn}/${l.length}` : '—'}), el('td',{}, pctPill(dn, l.length)),
+      el('td',{class:'num'}, m ? el('span',{class:'flag m',text:String(m)}) : el('span',{class:'by',text:'0'})),
+      el('td',{class:'num'}, k ? el('span',{class:'flag k',text:String(k)}) : el('span',{class:'by',text:'0'})),
+      el('td',{class:'stripcol'}, strip(x => x.div === dv.k, `Penyelesaian harian ${dv.n}`))));
   }
-  const tot = el('tr',{class:'total'}, el('td',{text:'Semua divisi'}));
-  for (const d of days) { const l = weekTasks.filter(x=>x.date===d); tot.append(el('td',{text: l.length ? `${l.filter(x=>x.done).length}/${l.length}` : '—'})); }
-  tot.append(el('td',{}, pctPill(gD,gT)), el('td')); body.append(tot); t.append(body);
+  body.append(el('tr',{class:'total'}, el('td',{text:'Semua divisi'}), el('td',{class:'num',text: total ? `${done}/${total}` : '—'}), el('td',{}, pctPill(done,total)),
+    el('td',{class:'num',text:String(red)}), el('td',{class:'num',text:String(yellow)}), el('td',{class:'stripcol'}, strip(() => true, 'Penyelesaian harian semua divisi'))));
+  t.append(body);
 
   const issues = $('issues'); issues.innerHTML = '';
-  const flagged = weekTasks.filter(x => x.status==='merah' || x.status==='kuning' || (x.note && !x.done))
-    .sort((p,q) => (q.status==='merah') - (p.status==='merah') || p.date.localeCompare(q.date));
-  issues.append(el('h3',{text: flagged.length ? `Perlu perhatian minggu ini (${flagged.length})` : 'Perlu perhatian minggu ini'}));
+  const flagged = counted.filter(x => x.status==='merah' || x.status==='kuning' || (x.note && !x.done))
+    .sort((p,q) => (q.status==='merah') - (p.status==='merah') || q.date.localeCompare(p.date));
+  issues.append(el('h3',{text: flagged.length ? `Perlu perhatian bulan ini (${flagged.length})` : 'Perlu perhatian bulan ini'}));
   if (!flagged.length) { issues.append(el('p',{class:'by',text:'Tidak ada tugas berstatus kuning atau merah, dan tidak ada catatan kendala yang terbuka.'})); return; }
   const ul = el('ul');
-  for (const x of flagged) {
+  for (const x of flagged.slice(0, 40)) {
     const dv = DIVS.find(d=>d.k===x.div), dd = parse(x.date);
     ul.append(el('li',{}, el('span',{class:'flag '+(x.status==='merah'?'m':x.status==='kuning'?'k':''),text: x.status ? x.status.toUpperCase() : 'CATATAN'}),
       document.createTextNode(' ' + x.text + ' '),
       el('small',{text:`· ${dv ? dv.n : x.div} · ${HARI[dd.getDay()]} ${dd.getDate()}${x.done ? ' · selesai' : ''}${x.note ? ' · ' + x.note : ''}`})));
   }
+  if (flagged.length > 40) ul.append(el('li',{}, el('small',{text:`+${flagged.length - 40} lainnya`})));
   issues.append(ul);
 }
 
@@ -250,10 +292,13 @@ function setView(v){
   $('v-rekap').setAttribute('aria-pressed', String(v==='rekap'));
   $('v-anggota').setAttribute('aria-pressed', String(v==='anggota'));
   $('v-rutin').setAttribute('aria-pressed', String(v==='rutin'));
+  $('v-riwayat').setAttribute('aria-pressed', String(v==='riwayat'));
+  $('view-riwayat').hidden = v !== 'riwayat';
+  if (v === 'riwayat') loadHistory(true);
   $('view-rutin').hidden = v !== 'rutin';
   if (v === 'rutin') loadTemplates();
   $('view-harian').hidden = v !== 'harian'; $('view-rekap').hidden = v !== 'rekap'; $('view-anggota').hidden = v !== 'anggota';
-  if (v === 'rekap') { renderWeek(); loadWeek(); }
+  if (v === 'rekap') { renderMonth(); loadMonth(); }
   if (v === 'anggota') loadMembers();
 }
 const goDay = d => { day = d; pendingDelete = null; openNotes.clear(); tasks = []; renderDay(); loadDay(); };
@@ -313,13 +358,60 @@ $('wa-copy').onclick = async () => {
 $('wa-send').onclick = () => {
   window.open('https://wa.me/?text=' + encodeURIComponent($('wa-text').value), '_blank', 'noopener');
 };
-$('wprev').onclick = () => { week = addDays(week,-7); renderWeek(); loadWeek(); };
-$('wnext').onclick = () => { week = addDays(week,7); renderWeek(); loadWeek(); };
-$('thisweek').onclick = () => { week = monday(iso(new Date())); renderWeek(); loadWeek(); };
+$('wprev').onclick = () => { month = addMonths(month,-1); monthTasks = []; renderMonth(); loadMonth(); };
+$('wnext').onclick = () => { month = addMonths(month,1); monthTasks = []; renderMonth(); loadMonth(); };
+$('thisweek').onclick = () => { month = iso(new Date()).slice(0,7); monthTasks = []; renderMonth(); loadMonth(); };
 $('v-harian').onclick = () => setView('harian');
 $('v-rekap').onclick = () => setView('rekap');
 $('v-anggota').onclick = () => setView('anggota');
 $('v-rutin').onclick = () => setView('rutin');
+$('v-riwayat').onclick = () => setView('riwayat');
+
+/* ---------- history (admin) ---------- */
+const HPAGE = 100;
+let histRows = [], histReq = 0;
+async function loadHistory(reset){
+  const req = ++histReq;
+  if (reset) { histRows = []; fillWhoFilter(); }
+  let q = sb.from('riwayat').select('*').order('waktu', { ascending: false }).order('id', { ascending: false });
+  const dt = $('h-date').value, who = $('h-who').value, obj = $('h-obj').value;
+  if (dt) { const a = new Date(dt + 'T00:00:00'), b = new Date(a); b.setDate(b.getDate()+1); q = q.gte('waktu', a.toISOString()).lt('waktu', b.toISOString()); }
+  if (who) q = q.eq('email', who);
+  if (obj) q = q.eq('objek', obj);
+  const { data, error } = await q.range(histRows.length, histRows.length + HPAGE - 1);
+  if (req !== histReq) return;
+  const hn = $('hnotice');
+  if (error) { hn.textContent = 'Riwayat gagal dimuat. Coba lagi.'; hn.dataset.kind = 'err'; hn.hidden = false; return; }
+  hn.hidden = true;
+  histRows = histRows.concat(data);
+  renderHistory(data.length === HPAGE);
+}
+async function fillWhoFilter(){
+  const sel = $('h-who'); if (sel.options.length > 1) return;
+  const { data } = await sb.from('members').select('email,nama').order('nama');
+  for (const m of data || []) sel.append(el('option',{value:m.email.toLowerCase(), text:m.nama}));
+}
+function renderHistory(hasMore){
+  const t = $('histtable'); t.innerHTML = '';
+  t.append(el('thead',{}, el('tr',{}, el('th',{text:'Waktu'}), el('th',{text:'Siapa'}), el('th',{text:'Perubahan'}), el('th',{text:'Pada'}))));
+  const body = el('tbody');
+  if (!histRows.length) body.append(el('tr',{}, el('td',{colspan:'4', class:'by', text:'Belum ada perubahan yang cocok dengan filter ini.'})));
+  for (const r of histRows) {
+    const w = new Date(r.waktu);
+    const when = `${w.getDate()} ${BULAN[w.getMonth()].slice(0,3)} ${w.getFullYear()} · ${pad(w.getHours())}.${pad(w.getMinutes())}`;
+    const dv = DIVS.find(d => d.k === r.divisi);
+    const where = r.objek === 'anggota' ? 'Anggota' : `${r.objek === 'tugas rutin' ? 'Tugas rutin' : 'Checklist'}${dv ? ' · ' + dv.n : ''}${r.tanggal ? ' · ' + longDate(r.tanggal) : ''}`;
+    body.append(el('tr',{}, el('td',{class:'when', text:when}),
+      el('td',{text: r.pelaku || r.email || 'Sistem'}),
+      el('td',{class:'what'}, document.createTextNode(r.aksi), el('small',{text: r.teks || ''})),
+      el('td',{class:'by', text: where})));
+  }
+  t.append(body);
+  $('h-more').hidden = !hasMore;
+}
+$('h-more').onclick = () => loadHistory(false);
+['h-date','h-who','h-obj'].forEach(id => $(id).addEventListener('change', () => loadHistory(true)));
+$('h-reset').onclick = () => { $('h-date').value = ''; $('h-who').value = ''; $('h-obj').value = ''; loadHistory(true); };
 
 /* ---------- routine tasks (master) ---------- */
 let templates = [];
@@ -428,7 +520,12 @@ $('memberform').addEventListener('submit', async e => {
   mnotice(`${row.nama} terdaftar. Minta dia membuka aplikasi, pilih “Buat akun”, lalu pakai email ${row.email}.`);
   $('memberform').reset(); loadMembers();
 });
-$('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('logout').onclick = async () => {
+  const b = $('logout'); b.disabled = true; b.textContent = 'Keluar…';
+  try { await Promise.race([sb.auth.signOut({ scope: 'local' }), new Promise(r => setTimeout(r, 3000))]); } catch {}
+  try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch {}
+  location.replace(location.pathname);
+};
 
 /* ---------- login & start ---------- */
 $('loginform').addEventListener('submit', async e => {
@@ -472,7 +569,8 @@ async function start(){
   isAdmin = me.peran === 'admin';
   canWrite = isAdmin || me.peran === 'edit';
   $('v-anggota').hidden = !isAdmin;
-  if (!isAdmin && view === 'anggota') view = 'harian';
+  $('v-riwayat').hidden = !isAdmin;
+  if (!isAdmin && (view === 'anggota' || view === 'riwayat')) view = 'harian';
   $('whoami').textContent = `${me.nama} · ${isAdmin ? 'admin' : canWrite ? 'bisa mengubah' : 'lihat saja'}`;
   $('login').hidden = true; $('app').hidden = false;
   if (!canWrite) notice('Mode lihat saja. Hanya PA, CEO, dan Vice CEO yang bisa menambah, mencentang, dan menghapus tugas.');

@@ -14,6 +14,7 @@ Hak akses yang dipakai: CEO = admin; Vice CEO dan Personal Assistant = edit; Fin
 | `config.js` | Alamat dan kunci Supabase (diisi saat pemasangan) |
 | `schema.sql` | Tabel database dan aturan akses (dijalankan sekali di Supabase) |
 | `migrasi-tugas-rutin.sql` | Tambahan tabel tugas rutin (dijalankan setelah `schema.sql`) |
+| `migrasi-riwayat.sql` | Riwayat perubahan dan perbaikan tugas rutin (dijalankan terakhir) |
 
 ## Cara pakai harian
 
@@ -22,6 +23,10 @@ Hak akses yang dipakai: CEO = admin; Vice CEO dan Personal Assistant = edit; Fin
   setiap hari kerja (Senin–Sabtu). Bisa diubah namanya, dijeda, atau dihapus kapan saja.
 - **Draft:** teks yang sedang diketik di kolom tambah tugas dan catatan tersimpan otomatis di perangkat itu,
   jadi tidak hilang saat halaman ditutup.
+- **Rekap bulanan:** persentase tugas selesai per divisi, jumlah merah/kuning, dan kotak warna per hari.
+  Hanya hari yang sudah berjalan yang dihitung.
+- **Riwayat (khusus admin):** siapa mengubah apa dan kapan; dicatat otomatis oleh database.
+- **Laporan WA:** tombol **Kirim laporan ke WA** di tampilan Harian menyusun laporan hari itu.
 - **Karyawan:** buka aplikasi, klik **Belum punya kata sandi? Buat akun**, isi email yang didaftarkan dan buat kata sandi.
   Klik link konfirmasi di email (sekali saja), lalu masuk.
 
@@ -31,7 +36,7 @@ Hak akses yang dipakai: CEO = admin; Vice CEO dan Personal Assistant = edit; Fin
 1. Buka https://supabase.com, daftar, lalu **New project** (pilih region Singapore).
 2. Buka **SQL Editor → New query**.
 3. Di bagian 7 `schema.sql`, pastikan email admin benar.
-4. Tempel seluruh isi `schema.sql`, lalu klik **Run**. Ulangi dengan `migrasi-tugas-rutin.sql`.
+4. Tempel seluruh isi `schema.sql`, lalu klik **Run**. Ulangi dengan `migrasi-tugas-rutin.sql`, lalu `migrasi-riwayat.sql`.
 
 ### 2. Atur alamat aplikasi
 Di **Authentication → URL Configuration**, isi **Site URL** dengan alamat aplikasi di GitHub Pages,
@@ -49,9 +54,9 @@ supaya link konfirmasi email membuka aplikasi.
 ## Hak akses
 | Peran | Bisa apa |
 | --- | --- |
-| admin | Semua, termasuk menu Kelola anggota |
+| admin | Semua, termasuk menu Kelola anggota dan Riwayat |
 | edit | Tambah, centang, ubah status, catatan, hapus tugas |
-| lihat | Melihat checklist dan rekap mingguan |
+| lihat | Melihat checklist dan rekap bulanan |
 
 ## Keamanan
 - Kunci `anon` di `config.js` memang dirancang boleh terlihat publik. Data tetap terkunci oleh aturan
