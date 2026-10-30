@@ -182,6 +182,9 @@ table.hist th,table.hist td{text-align:left;vertical-align:top}
 table.hist td.when{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted)}
 table.hist td.what small{display:block;color:var(--muted);font-size:12px}
 .more{display:flex;justify-content:center;padding:14px 0}
+.pwlabel{font-weight:600;font-size:12.5px}
+.pwinput{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 12px;font-size:14px}
+.account{flex-wrap:wrap}
 .linkbtn{background:none!important;color:var(--indigo)!important;margin-top:4px!important;padding:6px!important;font-weight:600!important;font-size:13px}
 .memberform{display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .memberform div{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -208,6 +211,7 @@ table.members td,table.members th{text-align:left}
     <input id="password" type="password" autocomplete="current-password" minlength="6" required>
     <button type="submit" id="loginbtn">Masuk</button>
     <button type="button" class="linkbtn" id="togglemode">Belum punya kata sandi? Buat akun</button>
+    <button type="button" class="linkbtn" id="forgot">Lupa kata sandi?</button>
     <p class="loginerr" id="loginerr" hidden></p>
   </form>
 </section>
@@ -223,7 +227,7 @@ table.members td,table.members th{text-align:left}
       <button id="v-riwayat" aria-pressed="false" hidden>Riwayat</button>
       <button id="v-anggota" aria-pressed="false" hidden>Kelola anggota</button>
     </div>
-    <div class="account"><span id="whoami"></span><button class="textbtn" id="logout">Keluar</button></div>
+    <div class="account"><span id="whoami"></span><button class="textbtn" id="pw-open">Ganti kata sandi</button><button class="textbtn" id="logout">Keluar</button></div>
   </div>
 </header>
 
@@ -305,6 +309,19 @@ table.members td,table.members th{text-align:left}
   </section>
 </main>
 </div>
+
+<dialog id="pw-dialog" aria-labelledby="pw-title">
+  <form class="wa-box" id="pw-form">
+    <div class="wa-head"><h2 id="pw-title">Ganti kata sandi</h2><button type="button" class="iconbtn" id="pw-close" aria-label="Tutup">×</button></div>
+    <p class="muted" id="pw-hint">Kata sandi baru minimal 8 karakter.</p>
+    <label class="pwlabel" for="pw-new">Kata sandi baru</label>
+    <input class="pwinput" id="pw-new" type="password" autocomplete="new-password" minlength="8" required>
+    <label class="pwlabel" for="pw-again">Ulangi kata sandi baru</label>
+    <input class="pwinput" id="pw-again" type="password" autocomplete="new-password" minlength="8" required>
+    <div class="wa-actions"><button type="submit" class="wabtn" id="pw-save">Simpan kata sandi</button></div>
+    <p class="muted small" id="pw-msg" aria-live="polite"></p>
+  </form>
+</dialog>
 
 <dialog id="wa-dialog" aria-labelledby="wa-title">
   <form method="dialog" class="wa-box">

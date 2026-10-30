@@ -546,6 +546,39 @@ $('loginform').addEventListener('submit', async e => {
   start();
 });
 
+/* ---------- password ---------- */
+let recoveryMode = false;
+function openPw(recovery){
+  recoveryMode = !!recovery;
+  $('pw-form').reset(); $('pw-msg').textContent = '';
+  $('pw-hint').textContent = recovery ? 'Buat kata sandi baru untuk akun Anda (minimal 8 karakter).' : 'Kata sandi baru minimal 8 karakter.';
+  const d = $('pw-dialog'); if (d.showModal) d.showModal(); else d.setAttribute('open','');
+}
+$('pw-open').onclick = () => openPw(false);
+$('pw-close').onclick = () => $('pw-dialog').close();
+$('pw-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const a = $('pw-new').value, b = $('pw-again').value;
+  if (a.length < 8) { $('pw-msg').textContent = 'Kata sandi minimal 8 karakter.'; return; }
+  if (a !== b) { $('pw-msg').textContent = 'Kedua kata sandi tidak sama. Ketik ulang.'; return; }
+  $('pw-save').disabled = true;
+  const { error } = await sb.auth.updateUser({ password: a });
+  $('pw-save').disabled = false;
+  if (error) { $('pw-msg').textContent = /same|different/i.test(error.message) ? 'Kata sandi baru harus berbeda dari yang lama.' : 'Kata sandi gagal diganti. Coba lagi.'; return; }
+  $('pw-form').reset();
+  $('pw-msg').textContent = 'Kata sandi berhasil diganti. Gunakan kata sandi baru saat masuk berikutnya.';
+  if (recoveryMode) { recoveryMode = false; history.replaceState(null, '', location.pathname); setTimeout(() => { $('pw-dialog').close(); start(); }, 1200); }
+});
+sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') openPw(true); });
+$('forgot').addEventListener('click', async () => {
+  const email = $('email').value.trim().toLowerCase();
+  const show = (m, kind) => { $('loginerr').textContent = m; $('loginerr').dataset.kind = kind || ''; $('loginerr').hidden = false; };
+  if (!email) return show('Isi email Anda dulu, lalu klik “Lupa kata sandi?” lagi.');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  if (error) return show('Link ganti kata sandi gagal dikirim. Tunggu beberapa menit lalu coba lagi.');
+  show('Jika email terdaftar, link untuk membuat kata sandi baru sudah dikirim. Buka email lalu klik link-nya.', 'ok');
+});
+
 $('togglemode').addEventListener('click', () => {
   signupMode = !signupMode;
   $('loginbtn').textContent = signupMode ? 'Buat akun' : 'Masuk';
