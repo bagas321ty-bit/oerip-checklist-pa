@@ -536,13 +536,24 @@ $('loginform').addEventListener('submit', async e => {
   if (signupMode) {
     const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
     $('loginbtn').disabled = false;
-    if (error) return showErr(/registered|exists/i.test(error.message) ? 'Email ini sudah punya akun. Pilih “Sudah punya akun? Masuk”.' : /password/i.test(error.message) ? 'Kata sandi minimal 6 karakter.' : 'Akun gagal dibuat. Coba lagi.');
+    if (error) {
+      const m = error.message || '', st = error.status;
+      if (st === 429 || /rate limit/i.test(m)) return showErr('Server email sedang penuh, jadi email konfirmasi belum bisa dikirim. Coba lagi sekitar 1 jam lagi, atau hubungi admin.');
+      if (/registered|exists/i.test(m)) return showErr('Email ini sudah punya akun. Pilih “Sudah punya akun? Masuk”.');
+      if (/password/i.test(m)) return showErr('Kata sandi minimal 6 karakter.');
+      if (/email/i.test(m) && /invalid/i.test(m)) return showErr('Format email tidak valid. Periksa lagi penulisannya.');
+      return showErr('Akun gagal dibuat: ' + m);
+    }
     if (!data.session) return showErr('Akun dibuat. Buka email Anda dan klik tautan konfirmasi, lalu masuk.', 'ok');
     return start();
   }
   const { error } = await sb.auth.signInWithPassword({ email, password });
   $('loginbtn').disabled = false;
-  if (error) return showErr(/confirm/i.test(error.message) ? 'Email belum dikonfirmasi. Cek kotak masuk email Anda.' : 'Email atau kata sandi salah.');
+  if (error) {
+    if (/confirm/i.test(error.message)) return showErr('Email belum dikonfirmasi. Buka email dari Supabase (cek juga folder Spam) lalu klik link konfirmasinya.');
+    if (error.status === 429 || /rate limit/i.test(error.message)) return showErr('Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.');
+    return showErr('Email atau kata sandi salah.');
+  }
   start();
 });
 
@@ -575,7 +586,7 @@ $('forgot').addEventListener('click', async () => {
   const show = (m, kind) => { $('loginerr').textContent = m; $('loginerr').dataset.kind = kind || ''; $('loginerr').hidden = false; };
   if (!email) return show('Isi email Anda dulu, lalu klik “Lupa kata sandi?” lagi.');
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-  if (error) return show('Link ganti kata sandi gagal dikirim. Tunggu beberapa menit lalu coba lagi.');
+  if (error) return show(error.status === 429 || /rate limit/i.test(error.message) ? 'Server email sedang penuh. Coba lagi sekitar 1 jam lagi.' : 'Link ganti kata sandi gagal dikirim. Tunggu beberapa menit lalu coba lagi.');
   show('Jika email terdaftar, link untuk membuat kata sandi baru sudah dikirim. Buka email lalu klik link-nya.', 'ok');
 });
 
