@@ -185,8 +185,12 @@ table.hist td.what small{display:block;color:var(--muted);font-size:12px}
 .pwlabel{font-weight:600;font-size:12.5px}
 .pwinput{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 12px;font-size:14px}
 .account{flex-wrap:wrap}
+.loginbox .center{text-align:center;margin-top:10px}
+td.actions{white-space:nowrap}
+td.actions .del{margin-right:6px}
+.pwreset{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:4px 8px;font-size:12.5px;width:170px}
 .linkbtn{background:none!important;color:var(--indigo)!important;margin-top:4px!important;padding:6px!important;font-weight:600!important;font-size:13px}
-.memberform{display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.memberform{display:grid;grid-template-columns:1.2fr 1fr 1.2fr 1.1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .memberform div{display:flex;flex-direction:column;gap:4px;min-width:0}
 .memberform label{font-size:12px;font-weight:600;color:var(--muted)}
 .memberform input,.memberform select,table.members select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;font-size:13px;min-width:0}
@@ -204,14 +208,13 @@ table.members td,table.members th{text-align:left}
   <form id="loginform" class="loginbox">
     <small class="eyebrow">Oerip Indonesia · Personal Assistant</small>
     <h1>Checklist Laporan Harian</h1>
-    <p class="muted" id="loginhint">Masuk dengan email yang sudah didaftarkan CEO.</p>
-    <label for="email">Email</label>
-    <input id="email" type="email" autocomplete="username" required>
+    <p class="muted" id="loginhint">Masuk dengan username dan kata sandi yang diberikan admin.</p>
+    <label for="email">Username <span class="muted">(admin: email)</span></label>
+    <input id="email" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
     <label for="password">Kata sandi</label>
-    <input id="password" type="password" autocomplete="current-password" minlength="6" required>
+    <input id="password" type="password" autocomplete="current-password" required>
     <button type="submit" id="loginbtn">Masuk</button>
-    <button type="button" class="linkbtn" id="togglemode">Belum punya kata sandi? Buat akun</button>
-    <button type="button" class="linkbtn" id="forgot">Lupa kata sandi?</button>
+    <p class="muted small center">Lupa kata sandi? Minta admin mereset kata sandi Anda.</p>
     <p class="loginerr" id="loginerr" hidden></p>
   </form>
 </section>
@@ -296,13 +299,14 @@ table.members td,table.members th{text-align:left}
 
   <section id="view-anggota" class="rekap" hidden>
     <h2>Kelola anggota</h2>
-    <p class="sub">Daftarkan email karyawan di sini. Setelah itu, karyawan membuka aplikasi, memilih “Buat akun”, dan membuat kata sandinya sendiri dengan email yang sama.</p>
+    <p class="sub">Buat akun karyawan di sini. Karyawan masuk dengan username dan kata sandi awal yang Anda berikan, lalu menggantinya sendiri lewat “Ganti kata sandi”.</p>
     <form id="memberform" class="memberform">
       <div><label for="m-nama">Nama</label><input id="m-nama" required maxlength="80" placeholder="Contoh: Handayani"></div>
-      <div><label for="m-email">Email</label><input id="m-email" type="email" required placeholder="nama@email.com"></div>
+      <div><label for="m-user">Username</label><input id="m-user" required maxlength="32" autocapitalize="none" spellcheck="false" placeholder="Contoh: handayani"></div>
       <div><label for="m-peran">Hak akses</label>
         <select id="m-peran"><option value="edit">Bisa mengubah</option><option value="lihat">Lihat saja</option><option value="admin">Admin (bisa kelola anggota)</option></select></div>
-      <button type="submit">Simpan anggota</button>
+      <div><label for="m-pass">Kata sandi awal</label><input id="m-pass" type="password" minlength="8" required autocomplete="new-password" placeholder="Minimal 8 karakter"></div>
+      <button type="submit" id="m-save">Buat akun</button>
     </form>
     <p class="notice" id="mnotice" hidden></p>
     <div class="tablewrap"><table id="membertable" class="members"></table></div>

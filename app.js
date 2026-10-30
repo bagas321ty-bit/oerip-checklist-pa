@@ -31,7 +31,6 @@ if (!window.supabase || !cfg.SUPABASE_URL || cfg.SUPABASE_URL.includes('ISI-PROJ
 const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
 let canWrite = false, isAdmin = false, myEmail = '';
-let signupMode = false;
 let day = iso(new Date());
 let month = day.slice(0,7); // 'YYYY-MM'
 let tasks = [], monthTasks = [];
@@ -481,13 +480,23 @@ function renderTemplates(){
 }
 
 /* ---------- members (admin) ---------- */
+const AKUN_DOMAIN = 'akun.oerip.id';
+const toLogin = id => { id = (id || '').trim().toLowerCase(); return id.includes('@') ? id : `${id}@${AKUN_DOMAIN}`; };
+const showLogin = email => email.endsWith('@' + AKUN_DOMAIN) ? email.slice(0, -(AKUN_DOMAIN.length + 1)) : email;
 const PERAN = {admin:'Admin (bisa kelola anggota)', edit:'Bisa mengubah', lihat:'Lihat saja'};
 function mnotice(msg, kind){ const n=$('mnotice'); if(!msg){n.hidden=true;return;} n.textContent=msg; n.dataset.kind=kind||''; n.hidden=false; }
+async function akun(body){
+  const { data, error } = await sb.functions.invoke('kelola-akun', { body });
+  if (!error) return { ok: true, data };
+  let msg = 'Server akun tidak bisa dihubungi. Coba lagi.';
+  try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch {}
+  return { ok: false, msg };
+}
 async function loadMembers(){
   const { data, error } = await sb.from('members').select('email,nama,peran').order('nama');
   if (error) return mnotice('Daftar anggota gagal dimuat. Coba lagi.', 'err');
   const t = $('membertable'); t.innerHTML = '';
-  t.append(el('thead',{}, el('tr',{}, el('th',{text:'Nama'}), el('th',{text:'Email'}), el('th',{text:'Hak akses'}), el('th',{text:''}))));
+  t.append(el('thead',{}, el('tr',{}, el('th',{text:'Nama'}), el('th',{text:'Username / email login'}), el('th',{text:'Hak akses'}), el('th',{text:''}))));
   const body = el('tbody');
   for (const m of data) {
     const self = m.email.toLowerCase() === myEmail;
@@ -498,27 +507,55 @@ async function loadMembers(){
       const { error } = await sb.from('members').update({peran: sel.value}).eq('email', m.email);
       if (error) mnotice('Hak akses gagal diubah.', 'err'); else mnotice(`Hak akses ${m.nama} diubah.`);
     });
-    let act;
-    if (self) act = el('span',{class:'by',text:'Akun Anda'});
-    else act = el('button',{class:'del',text:'Hapus', onclick: async (e) => {
-      const cell = e.target.parentElement; cell.innerHTML = '';
-      cell.append(el('div',{class:'confirm'}, el('span',{text:'Cabut akses?'}),
-        el('button',{class:'yes',text:'Hapus', onclick: async () => {
-          const { error } = await sb.from('members').delete().eq('email', m.email);
-          if (error) mnotice('Anggota gagal dihapus.', 'err'); else { mnotice(`${m.nama} tidak lagi punya akses.`); loadMembers(); } }}),
-        el('button',{text:'Batal', onclick: loadMembers})));
-    }});
-    body.append(el('tr',{}, el('td',{text:m.nama}), el('td',{text:m.email}), el('td',{}, sel), el('td',{}, act)));
+    const cell = el('td',{class:'actions'});
+    const showActions = () => {
+      cell.innerHTML = '';
+      if (self) { cell.append(el('span',{class:'by',text:'Akun Anda'})); return; }
+      cell.append(
+        el('button',{class:'del',text:'Atur / reset kata sandi', onclick: () => {
+          cell.innerHTML = '';
+          const inp = el('input',{type:'password', class:'pwreset', placeholder:'Kata sandi baru (min. 8)', autocomplete:'new-password', 'aria-label':`Kata sandi baru untuk ${m.nama}`, minlength:'8'});
+          cell.append(el('form',{class:'confirm', onsubmit: async e => {
+            e.preventDefault();
+            if (inp.value.length < 8) return mnotice('Kata sandi minimal 8 karakter.', 'err');
+            const r = await akun({ action:'reset_password', username: m.email, password: inp.value });
+            if (!r.ok) return mnotice(r.msg, 'err');
+            mnotice(r.data && r.data.created ? `Akun login ${m.nama} dibuat. Login: ${showLogin(m.email)} dengan kata sandi yang tadi diisi.` : `Kata sandi ${m.nama} sudah direset dan akunnya aktif. Berikan kata sandi baru itu kepadanya secara langsung.`); showActions();
+          }}, inp, el('button',{type:'submit',class:'yes',text:'Simpan'}), el('button',{type:'button',text:'Batal', onclick: showActions})));
+          inp.focus();
+        }}),
+        el('button',{class:'del',text:'Hapus', onclick: () => {
+          cell.innerHTML = '';
+          cell.append(el('div',{class:'confirm'}, el('span',{text:'Hapus akun & cabut akses?'}),
+            el('button',{class:'yes',text:'Hapus', onclick: async () => {
+              const { error } = await sb.from('members').delete().eq('email', m.email);
+              if (error) return mnotice('Anggota gagal dihapus.', 'err');
+              const r = await akun({ action:'delete', username: m.email });
+              mnotice(r.ok ? `${m.nama} sudah dihapus dan tidak bisa masuk lagi.` : `${m.nama} sudah tidak punya akses, tetapi akun loginnya gagal dihapus: ${r.msg}`, r.ok ? '' : 'err');
+              loadMembers();
+            }}),
+            el('button',{text:'Batal', onclick: showActions})));
+        }}));
+    };
+    showActions();
+    body.append(el('tr',{}, el('td',{text:m.nama}), el('td',{text:showLogin(m.email)}), el('td',{}, sel), cell));
   }
   t.append(body);
 }
 $('memberform').addEventListener('submit', async e => {
   e.preventDefault();
-  const row = { nama: $('m-nama').value.trim(), email: $('m-email').value.trim().toLowerCase(), peran: $('m-peran').value };
-  const { error } = await sb.from('members').upsert(row);
-  if (error) return mnotice('Anggota gagal disimpan. Periksa email lalu coba lagi.', 'err');
-  mnotice(`${row.nama} terdaftar. Minta dia membuka aplikasi, pilih “Buat akun”, lalu pakai email ${row.email}.`);
-  $('memberform').reset(); loadMembers();
+  const nama = $('m-nama').value.trim(), username = $('m-user').value.trim().toLowerCase(), peran = $('m-peran').value, password = $('m-pass').value;
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) return mnotice('Username 3–32 karakter: huruf kecil, angka, titik, garis bawah, atau strip. Tanpa spasi.', 'err');
+  if (password.length < 8) return mnotice('Kata sandi awal minimal 8 karakter.', 'err');
+  const btn = $('m-save'); btn.disabled = true; btn.textContent = 'Membuat akun…';
+  try {
+    const r = await akun({ action:'create', username, nama, password });
+    if (!r.ok) return mnotice(r.msg, 'err');
+    const { error } = await sb.from('members').upsert({ email: toLogin(username), nama, peran });
+    if (error) return mnotice('Akun login dibuat, tetapi gagal didaftarkan sebagai anggota. Coba simpan lagi.', 'err');
+    mnotice(`Akun ${nama} siap. Login: username “${username}” dengan kata sandi awal yang tadi diisi. Minta dia menggantinya lewat tombol “Ganti kata sandi”.`);
+    $('memberform').reset(); loadMembers();
+  } finally { btn.disabled = false; btn.textContent = 'Buat akun'; }
 });
 $('logout').onclick = async () => {
   const b = $('logout'); b.disabled = true; b.textContent = 'Keluar…';
@@ -531,28 +568,14 @@ $('logout').onclick = async () => {
 $('loginform').addEventListener('submit', async e => {
   e.preventDefault();
   $('loginbtn').disabled = true; $('loginerr').hidden = true;
-  const email = $('email').value.trim().toLowerCase(), password = $('password').value;
+  const email = toLogin($('email').value), password = $('password').value;
   const showErr = (m, kind) => { $('loginerr').textContent = m; $('loginerr').dataset.kind = kind || ''; $('loginerr').hidden = false; };
-  if (signupMode) {
-    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
-    $('loginbtn').disabled = false;
-    if (error) {
-      const m = error.message || '', st = error.status;
-      if (st === 429 || /rate limit/i.test(m)) return showErr('Server email sedang penuh, jadi email konfirmasi belum bisa dikirim. Coba lagi sekitar 1 jam lagi, atau hubungi admin.');
-      if (/registered|exists/i.test(m)) return showErr('Email ini sudah punya akun. Pilih “Sudah punya akun? Masuk”.');
-      if (/password/i.test(m)) return showErr('Kata sandi minimal 6 karakter.');
-      if (/email/i.test(m) && /invalid/i.test(m)) return showErr('Format email tidak valid. Periksa lagi penulisannya.');
-      return showErr('Akun gagal dibuat: ' + m);
-    }
-    if (!data.session) return showErr('Akun dibuat. Buka email Anda dan klik tautan konfirmasi, lalu masuk.', 'ok');
-    return start();
-  }
   const { error } = await sb.auth.signInWithPassword({ email, password });
   $('loginbtn').disabled = false;
   if (error) {
-    if (/confirm/i.test(error.message)) return showErr('Email belum dikonfirmasi. Buka email dari Supabase (cek juga folder Spam) lalu klik link konfirmasinya.');
+    if (/confirm/i.test(error.message)) return showErr('Akun ini belum aktif. Minta admin menekan “Reset kata sandi” untuk akun Anda.');
     if (error.status === 429 || /rate limit/i.test(error.message)) return showErr('Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.');
-    return showErr('Email atau kata sandi salah.');
+    return showErr('Username atau kata sandi salah.');
   }
   start();
 });
@@ -581,24 +604,6 @@ $('pw-form').addEventListener('submit', async e => {
   if (recoveryMode) { recoveryMode = false; history.replaceState(null, '', location.pathname); setTimeout(() => { $('pw-dialog').close(); start(); }, 1200); }
 });
 sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') openPw(true); });
-$('forgot').addEventListener('click', async () => {
-  const email = $('email').value.trim().toLowerCase();
-  const show = (m, kind) => { $('loginerr').textContent = m; $('loginerr').dataset.kind = kind || ''; $('loginerr').hidden = false; };
-  if (!email) return show('Isi email Anda dulu, lalu klik “Lupa kata sandi?” lagi.');
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-  if (error) return show(error.status === 429 || /rate limit/i.test(error.message) ? 'Server email sedang penuh. Coba lagi sekitar 1 jam lagi.' : 'Link ganti kata sandi gagal dikirim. Tunggu beberapa menit lalu coba lagi.');
-  show('Jika email terdaftar, link untuk membuat kata sandi baru sudah dikirim. Buka email lalu klik link-nya.', 'ok');
-});
-
-$('togglemode').addEventListener('click', () => {
-  signupMode = !signupMode;
-  $('loginbtn').textContent = signupMode ? 'Buat akun' : 'Masuk';
-  $('togglemode').textContent = signupMode ? 'Sudah punya akun? Masuk' : 'Belum punya kata sandi? Buat akun';
-  $('loginhint').textContent = signupMode ? 'Pakai email yang sudah didaftarkan CEO, lalu buat kata sandi (minimal 6 karakter).' : 'Masuk dengan email yang sudah didaftarkan CEO.';
-  $('password').setAttribute('autocomplete', signupMode ? 'new-password' : 'current-password');
-  $('loginerr').hidden = true;
-});
-
 async function start(){
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { $('login').hidden = false; $('app').hidden = true; return; }
@@ -606,7 +611,7 @@ async function start(){
   const { data: me, error } = await sb.from('members').select('nama,peran').ilike('email', email).maybeSingle();
   if (error || !me) {
     $('login').hidden = false; $('app').hidden = true;
-    $('loginerr').textContent = 'Email ini belum didaftarkan CEO, jadi belum bisa membuka checklist.'; $('loginerr').dataset.kind=''; $('loginerr').hidden = false;
+    $('loginerr').textContent = 'Akun ini belum didaftarkan sebagai anggota. Hubungi admin.'; $('loginerr').dataset.kind=''; $('loginerr').hidden = false;
     await sb.auth.signOut(); return;
   }
   myEmail = email;
