@@ -134,7 +134,7 @@ function renderDay(){
 
   const grid = $('grid'); grid.innerHTML = '';
   for (const d of DIVS) {
-    const list = tasks.filter(t => t.div === d.k);
+    const list = tasks.filter(t => t.div === d.k).sort((a,b) => (a.createdAt||'').localeCompare(b.createdAt||'') || a.text.localeCompare(b.text));
     const doneN = list.filter(t => t.done).length;
     const card = el('article',{class:'card','aria-label':d.n},
       el('div',{class:'card-h'}, el('h2',{text:d.n}), el('span',{class:'who',text:d.who}), el('span',{class:'frac',text:`${doneN}/${list.length}`})));
@@ -283,7 +283,7 @@ function renderTemplates(){
   $('rutinhint').hidden = false;
   const grid = $('rutingrid'); grid.innerHTML = '';
   for (const d of DIVS) {
-    const list = templates.filter(t => t.divisi === d.k);
+    const list = templates.filter(t => t.divisi === d.k).sort((a,b) => a.teks.localeCompare(b.teks));
     const on = list.filter(t => t.aktif).length;
     const card = el('article',{class:'card','aria-label':`Tugas rutin ${d.n}`},
       el('div',{class:'card-h'}, el('h2',{text:d.n}), el('span',{class:'who',text:''}), el('span',{class:'frac',text:`${on} aktif`})));
