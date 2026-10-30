@@ -342,8 +342,7 @@ function waReport(){
     const dn = list.filter(t => t.done).length;
     L.push(`${dn === list.length ? '✅' : '⏳'} *${d.n}* ${dn}/${list.length}`);
     const open = list.filter(t => !t.done);
-    for (const t of open.slice(0, 5)) L.push(`    • belum: ${t.text}`);
-    if (open.length > 5) L.push(`    • +${open.length - 5} tugas lain belum selesai`);
+    for (const t of open) L.push(`    ❌ ${t.text}`);
   }
   L.push(''); L.push('_Dikirim dari Checklist Laporan Harian PA_');
   return L.join('\n');
