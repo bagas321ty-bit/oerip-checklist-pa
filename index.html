@@ -136,6 +136,13 @@ tr.total td{font-weight:700;background:var(--sunk)}
 .loginbox input{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 12px;font-size:14px}
 .loginbox button{margin-top:14px;border:0;background:var(--indigo);color:var(--surface);border-radius:8px;padding:11px;font-weight:700}
 .loginbox button:disabled{opacity:.6}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--soga);border:1px solid var(--line);border-radius:999px;padding:0 6px;margin-left:6px;vertical-align:1px}
+.rtask{padding:8px 16px;display:flex;gap:8px;align-items:center}
+.rtask + .rtask{border-top:1px dashed var(--line)}
+.rtask input[type=text]{flex:1;min-width:0;border:1px solid transparent;background:transparent;border-radius:6px;padding:5px 6px;font-size:13.5px}
+.rtask input[type=text]:hover,.rtask input[type=text]:focus{border-color:var(--line);background:var(--bg)}
+.rtask.off input[type=text]{color:var(--muted);text-decoration:line-through}
+.rtask .tog{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;color:var(--muted)}
 .linkbtn{background:none!important;color:var(--indigo)!important;margin-top:4px!important;padding:6px!important;font-weight:600!important;font-size:13px}
 .memberform{display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .memberform div{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -172,6 +179,7 @@ table.members td,table.members th{text-align:left}
     <div class="brand"><small>Oerip Indonesia · Personal Assistant</small><h1>Checklist Laporan Harian</h1></div>
     <div class="views" role="group" aria-label="Tampilan">
       <button id="v-harian" aria-pressed="true">Harian</button>
+      <button id="v-rutin" aria-pressed="false">Tugas rutin</button>
       <button id="v-rekap" aria-pressed="false">Rekap mingguan</button>
       <button id="v-anggota" aria-pressed="false" hidden>Kelola anggota</button>
     </div>
@@ -219,6 +227,13 @@ table.members td,table.members th{text-align:left}
     <div class="tablewrap"><table id="rekaptable"></table></div>
     <div class="issues" id="issues"></div>
   </section>
+  <section id="view-rutin" class="rekap" hidden>
+    <h2>Tugas rutin</h2>
+    <p class="sub" id="rutinhint">Tugas di sini otomatis muncul di checklist setiap hari kerja (Senin–Sabtu). Tugas rutin baru langsung muncul hari ini. Mengganti nama, menjeda, atau menghapus berlaku mulai hari berikutnya; tugas yang sudah muncul hari ini diubah di tampilan Harian.</p>
+    <p class="notice" id="rnotice" hidden></p>
+    <div class="grid" id="rutingrid"></div>
+  </section>
+
   <section id="view-anggota" class="rekap" hidden>
     <h2>Kelola anggota</h2>
     <p class="sub">Daftarkan email karyawan di sini. Setelah itu, karyawan membuka aplikasi, memilih “Buat akun”, dan membuat kata sandinya sendiri dengan email yang sama.</p>

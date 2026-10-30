@@ -13,10 +13,15 @@ Hak akses yang dipakai: CEO = admin; Vice CEO dan Personal Assistant = edit; Fin
 | `app.js` | Logika aplikasi |
 | `config.js` | Alamat dan kunci Supabase (diisi saat pemasangan) |
 | `schema.sql` | Tabel database dan aturan akses (dijalankan sekali di Supabase) |
+| `migrasi-tugas-rutin.sql` | Tambahan tabel tugas rutin (dijalankan setelah `schema.sql`) |
 
 ## Cara pakai harian
 
 - **Admin (CEO):** buka menu **Kelola anggota**, isi nama, email, dan hak akses karyawan, lalu klik **Simpan anggota**.
+- **Tugas rutin:** buka menu **Tugas rutin**, isi tugas tetap per divisi. Tugas ini otomatis muncul di checklist
+  setiap hari kerja (Senin–Sabtu). Bisa diubah namanya, dijeda, atau dihapus kapan saja.
+- **Draft:** teks yang sedang diketik di kolom tambah tugas dan catatan tersimpan otomatis di perangkat itu,
+  jadi tidak hilang saat halaman ditutup.
 - **Karyawan:** buka aplikasi, klik **Belum punya kata sandi? Buat akun**, isi email yang didaftarkan dan buat kata sandi.
   Klik link konfirmasi di email (sekali saja), lalu masuk.
 
@@ -26,7 +31,7 @@ Hak akses yang dipakai: CEO = admin; Vice CEO dan Personal Assistant = edit; Fin
 1. Buka https://supabase.com, daftar, lalu **New project** (pilih region Singapore).
 2. Buka **SQL Editor → New query**.
 3. Di bagian 7 `schema.sql`, pastikan email admin benar.
-4. Tempel seluruh isi `schema.sql`, lalu klik **Run**.
+4. Tempel seluruh isi `schema.sql`, lalu klik **Run**. Ulangi dengan `migrasi-tugas-rutin.sql`.
 
 ### 2. Atur alamat aplikasi
 Di **Authentication → URL Configuration**, isi **Site URL** dengan alamat aplikasi di GitHub Pages,

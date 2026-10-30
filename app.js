@@ -38,9 +38,13 @@ let tasks = [], weekTasks = [];
 let pendingDelete = null;
 const openNotes = new Set();
 let view = 'harian';
-try { const v = localStorage.getItem('oerip-pa-view'); if (v === 'rekap' || v === 'anggota') view = v; } catch {}
+try { const v = localStorage.getItem('oerip-pa-view'); if (v === 'rekap' || v === 'anggota' || v === 'rutin') view = v; } catch {}
 let channel = null, refreshTimer = null;
 
+const draft = {
+  get(k){ try { return localStorage.getItem('oerip-draft:' + k) || ''; } catch { return ''; } },
+  set(k, v){ try { v ? localStorage.setItem('oerip-draft:' + k, v) : localStorage.removeItem('oerip-draft:' + k); } catch {} },
+};
 function notice(msg, kind){ const n = $('notice'); if (!msg) { n.hidden = true; return; } n.textContent = msg; n.dataset.kind = kind || ''; n.hidden = false; }
 function handleErr(e){
   console.error(e);
@@ -51,8 +55,18 @@ function handleErr(e){
 }
 
 /* ---------- data ---------- */
-const fromRow = r => ({id:r.id, date:r.tanggal, div:r.divisi, text:r.teks, done:r.selesai, status:r.status, note:r.catatan, by:r.diubah_oleh, createdAt:r.dibuat, updatedAt:r.diubah});
+const fromRow = r => ({id:r.id, tpl:r.template_id, date:r.tanggal, div:r.divisi, text:r.teks, done:r.selesai, status:r.status, note:r.catatan, by:r.diubah_oleh, createdAt:r.dibuat, updatedAt:r.diubah});
+let routineDone = new Set();
+async function ensureRoutine(d){
+  if (!canWrite || routineDone.has(d) || d < iso(new Date()) || parse(d).getDay() === 0) return;
+  routineDone.add(d);
+  const { error } = await sb.rpc('buat_tugas_rutin', { p_tanggal: d });
+  if (error) { routineDone.delete(d); console.error(error); }
+}
 async function loadDay(){
+  const d = day;
+  await ensureRoutine(d);
+  if (d !== day) return;
   const { data, error } = await sb.from('tasks').select('*').eq('tanggal', day).order('dibuat');
   if (error) return handleErr(error);
   tasks = data.map(fromRow); renderDay();
@@ -100,6 +114,9 @@ async function copyPrev(){
 
 /* ---------- daily view ---------- */
 function renderDay(){
+  const focused = document.activeElement && document.activeElement.id;
+  const caret = focused && document.activeElement.selectionStart;
+  queueMicrotask(() => { if (focused) { const f = $(focused); if (f && f !== document.activeElement) { f.focus(); try { f.setSelectionRange(caret, caret); } catch {} } } });
   const isToday = day === iso(new Date());
   $('daytitle').innerHTML = '';
   $('daytitle').append(el('span',{text: isToday ? 'Hari ini' : 'Tanggal'}), document.createTextNode(longDate(day)));
@@ -126,8 +143,11 @@ function renderDay(){
     for (const t of list) ul.append(taskRow(t));
     card.append(ul);
     if (canWrite) {
-      const inp = el('input',{id:`add-${d.k}`, type:'text', placeholder:'Tambah tugas…', 'aria-label':`Tambah tugas ${d.n}`, maxlength:'240'});
-      card.append(el('form',{class:'add', onsubmit: e => { e.preventDefault(); addTask(d.k, inp.value); inp.value=''; }}, inp, el('button',{type:'submit',text:'Tambah'})));
+      const key = `add:${day}:${d.k}`;
+      const inp = el('input',{id:`add-${d.k}`, type:'text', placeholder:'Tambah tugas khusus hari ini…', 'aria-label':`Tambah tugas ${d.n}`, maxlength:'240'});
+      inp.value = draft.get(key);
+      inp.addEventListener('input', () => draft.set(key, inp.value));
+      card.append(el('form',{class:'add', onsubmit: e => { e.preventDefault(); addTask(d.k, inp.value); inp.value=''; draft.set(key, ''); }}, inp, el('button',{type:'submit',text:'Tambah'})));
     }
     grid.append(card);
   }
@@ -138,6 +158,7 @@ function taskRow(t){
   cb.checked = !!t.done; cb.disabled = !canWrite;
   cb.addEventListener('change', () => patch(t.id, {done: cb.checked}));
   const txt = el('label',{class:'ttext'+(t.done?' done':''), for:`cb-${t.id}`, text:t.text});
+  if (t.tpl) txt.append(el('span',{class:'badge',text:'rutin'}));
   let right = el('span');
   if (canWrite) {
     right = pendingDelete === t.id
@@ -156,12 +177,14 @@ function taskRow(t){
   }
   const meta = el('div',{class:'meta'}, chips);
   if (t.by) { const w = t.updatedAt ? new Date(t.updatedAt) : null; meta.append(el('span',{class:'by',text:`Diubah ${t.by}${w ? ' · ' + pad(w.getHours())+'.'+pad(w.getMinutes()) : ''}`})); }
-  if (canWrite && !t.note && !openNotes.has(t.id)) meta.append(el('button',{class:'del',text:'+ Catatan', onclick: () => { openNotes.add(t.id); renderDay(); setTimeout(()=>{ const n=$(`note-${t.id}`); n && n.focus(); },0); }}));
+  if (canWrite && !t.note && !openNotes.has(t.id) && !draft.get(`note:${t.id}`)) meta.append(el('button',{class:'del',text:'+ Catatan', onclick: () => { openNotes.add(t.id); renderDay(); setTimeout(()=>{ const n=$(`note-${t.id}`); n && n.focus(); },0); }}));
   li.append(meta);
-  if (canWrite && (t.note || openNotes.has(t.id))) {
+  if (canWrite && (t.note || openNotes.has(t.id) || draft.get(`note:${t.id}`))) {
     const ta = el('textarea',{class:'note', id:`note-${t.id}`, rows:'1', placeholder:'Catatan / kendala…', 'aria-label':`Catatan ${t.text}`, maxlength:'600'});
-    ta.value = t.note || '';
-    ta.addEventListener('change', () => { openNotes.delete(t.id); patch(t.id, {note: ta.value.trim()}); });
+    const nkey = `note:${t.id}`;
+    ta.value = draft.get(nkey) || t.note || '';
+    ta.addEventListener('input', () => draft.set(nkey, ta.value));
+    ta.addEventListener('change', () => { openNotes.delete(t.id); draft.set(nkey, ''); patch(t.id, {note: ta.value.trim()}); });
     li.append(ta);
   } else if (!canWrite && t.note) li.append(el('div',{class:'notetxt',text:'Catatan: ' + t.note}));
   return li;
@@ -226,6 +249,9 @@ function setView(v){
   $('v-harian').setAttribute('aria-pressed', String(v==='harian'));
   $('v-rekap').setAttribute('aria-pressed', String(v==='rekap'));
   $('v-anggota').setAttribute('aria-pressed', String(v==='anggota'));
+  $('v-rutin').setAttribute('aria-pressed', String(v==='rutin'));
+  $('view-rutin').hidden = v !== 'rutin';
+  if (v === 'rutin') loadTemplates();
   $('view-harian').hidden = v !== 'harian'; $('view-rekap').hidden = v !== 'rekap'; $('view-anggota').hidden = v !== 'anggota';
   if (v === 'rekap') { renderWeek(); loadWeek(); }
   if (v === 'anggota') loadMembers();
@@ -242,6 +268,74 @@ $('thisweek').onclick = () => { week = monday(iso(new Date())); renderWeek(); lo
 $('v-harian').onclick = () => setView('harian');
 $('v-rekap').onclick = () => setView('rekap');
 $('v-anggota').onclick = () => setView('anggota');
+$('v-rutin').onclick = () => setView('rutin');
+
+/* ---------- routine tasks (master) ---------- */
+let templates = [];
+function rnotice(msg, kind){ const n=$('rnotice'); if(!msg){n.hidden=true;return;} n.textContent=msg; n.dataset.kind=kind||''; n.hidden=false; }
+async function loadTemplates(){
+  const { data, error } = await sb.from('templates').select('*').order('dibuat');
+  if (error) return rnotice('Tugas rutin gagal dimuat. Coba lagi.', 'err');
+  templates = data; renderTemplates();
+}
+function renderTemplates(){
+  const focused = document.activeElement && document.activeElement.id;
+  $('rutinhint').hidden = false;
+  const grid = $('rutingrid'); grid.innerHTML = '';
+  for (const d of DIVS) {
+    const list = templates.filter(t => t.divisi === d.k);
+    const on = list.filter(t => t.aktif).length;
+    const card = el('article',{class:'card','aria-label':`Tugas rutin ${d.n}`},
+      el('div',{class:'card-h'}, el('h2',{text:d.n}), el('span',{class:'who',text:''}), el('span',{class:'frac',text:`${on} aktif`})));
+    const ul = el('ul',{class:'tasks'});
+    if (!list.length) ul.append(el('li',{class:'empty',text: canWrite ? 'Belum ada tugas rutin. Tambahkan di bawah.' : 'Belum ada tugas rutin.'}));
+    for (const t of list) {
+      const li = el('li',{class:'rtask' + (t.aktif ? '' : ' off')});
+      const inp = el('input',{type:'text', id:`tpl-${t.id}`, maxlength:'240', 'aria-label':`Ubah tugas rutin ${t.teks}`});
+      inp.value = t.teks; inp.readOnly = !canWrite;
+      inp.addEventListener('change', async () => {
+        const v = inp.value.trim(); if (!v) { inp.value = t.teks; return; }
+        const { error } = await sb.from('templates').update({teks: v}).eq('id', t.id);
+        if (error) rnotice('Perubahan gagal disimpan.', 'err'); else { t.teks = v; rnotice('Tersimpan. Berlaku untuk checklist hari berikutnya.'); }
+      });
+      li.append(inp);
+      if (canWrite) {
+        li.append(el('button',{class:'tog', text: t.aktif ? 'Jeda' : 'Aktifkan', title: t.aktif ? 'Berhenti muncul sementara' : 'Muncul lagi setiap hari', onclick: async () => {
+          const { error } = await sb.from('templates').update({aktif: !t.aktif}).eq('id', t.id);
+          if (error) return rnotice('Perubahan gagal disimpan.', 'err');
+          t.aktif = !t.aktif; renderTemplates();
+        }}));
+        li.append(el('button',{class:'del', text:'Hapus', 'aria-label':`Hapus tugas rutin ${t.teks}`, onclick: (e) => {
+          const box = e.target; box.replaceWith(el('div',{class:'confirm'}, el('span',{text:'Hapus?'}),
+            el('button',{class:'yes',text:'Hapus', onclick: async () => {
+              const { error } = await sb.from('templates').delete().eq('id', t.id);
+              if (error) return rnotice('Tugas rutin gagal dihapus.', 'err');
+              templates = templates.filter(x => x.id !== t.id); renderTemplates();
+            }}),
+            el('button',{text:'Batal', onclick: renderTemplates})));
+        }}));
+      }
+      ul.append(li);
+    }
+    card.append(ul);
+    if (canWrite) {
+      const key = `tpl-add:${d.k}`;
+      const inp = el('input',{id:`tpladd-${d.k}`, type:'text', placeholder:'Tambah tugas rutin…', 'aria-label':`Tambah tugas rutin ${d.n}`, maxlength:'240'});
+      inp.value = draft.get(key);
+      inp.addEventListener('input', () => draft.set(key, inp.value));
+      card.append(el('form',{class:'add', onsubmit: async e => {
+        e.preventDefault(); const v = inp.value.trim(); if (!v) return;
+        const { data, error } = await sb.from('templates').insert({divisi: d.k, teks: v}).select().single();
+        if (error) return rnotice('Tugas rutin gagal ditambahkan.', 'err');
+        draft.set(key, ''); templates.push(data); renderTemplates();
+        routineDone.clear();
+        rnotice('Ditambahkan. Tugas ini muncul di checklist hari ini dan setiap hari kerja berikutnya.');
+      }}, inp, el('button',{type:'submit',text:'Tambah'})));
+    }
+    grid.append(card);
+  }
+  if (focused) { const f = $(focused); if (f) f.focus(); }
+}
 
 /* ---------- members (admin) ---------- */
 const PERAN = {admin:'Admin (bisa kelola anggota)', edit:'Bisa mengubah', lihat:'Lihat saja'};
