@@ -143,6 +143,17 @@ tr.total td{font-weight:700;background:var(--sunk)}
 .rtask input[type=text]:hover,.rtask input[type=text]:focus{border-color:var(--line);background:var(--bg)}
 .rtask.off input[type=text]{color:var(--muted);text-decoration:line-through}
 .rtask .tog{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;color:var(--muted)}
+.wabtn{border:0;background:#1F8F55;color:#fff;border-radius:8px;padding:7px 14px;font-weight:700;font-size:13px}
+.wabtn:hover{background:#18784A}
+dialog#wa-dialog{border:1px solid var(--line);border-radius:14px;padding:0;background:var(--surface);color:var(--fg);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 48px)}
+dialog#wa-dialog::backdrop{background:rgba(20,16,12,.45)}
+.wa-box{display:flex;flex-direction:column;gap:10px;padding:18px 20px}
+.wa-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.wa-head h2{margin:0;font-size:17px;font-weight:800}
+.wa-box .muted{margin:0;color:var(--muted);font-size:13px}
+.wa-box .small{font-size:12px}
+#wa-text{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font:12.5px/1.5 var(--mono);resize:vertical;min-height:240px}
+.wa-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .linkbtn{background:none!important;color:var(--indigo)!important;margin-top:4px!important;padding:6px!important;font-weight:600!important;font-size:13px}
 .memberform{display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .memberform div{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -209,6 +220,7 @@ table.members td,table.members th{text-align:left}
       <span><i class="dot" style="background:var(--warn)"></i>Kuning: berisiko, sudah ada perbaikan</span>
       <span><i class="dot" style="background:var(--bad)"></i>Merah: terhambat, butuh keputusan</span>
       <button class="textbtn" id="copyprev" hidden>Salin tugas dari hari kerja sebelumnya</button>
+      <button class="wabtn" id="wa-open">Kirim laporan ke WA</button>
     </div>
     <p class="notice" id="notice" hidden></p>
     <div class="grid" id="grid"></div>
@@ -249,6 +261,19 @@ table.members td,table.members th{text-align:left}
   </section>
 </main>
 </div>
+
+<dialog id="wa-dialog" aria-labelledby="wa-title">
+  <form method="dialog" class="wa-box">
+    <div class="wa-head"><h2 id="wa-title">Laporan untuk WhatsApp</h2><button class="iconbtn" value="close" aria-label="Tutup">×</button></div>
+    <p class="muted">Periksa dulu isinya. Teks bisa diubah sebelum dikirim.</p>
+    <textarea id="wa-text" rows="16" aria-label="Isi laporan"></textarea>
+    <div class="wa-actions">
+      <button type="button" class="textbtn" id="wa-copy">Salin teks</button>
+      <button type="button" class="wabtn" id="wa-send">Buka WhatsApp</button>
+    </div>
+    <p class="muted small" id="wa-msg" aria-live="polite">“Buka WhatsApp” membuka WhatsApp dengan teks ini, lalu pilih grup atau orang tujuan.</p>
+  </form>
+</dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>

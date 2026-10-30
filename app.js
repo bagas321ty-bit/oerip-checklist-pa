@@ -262,6 +262,57 @@ $('next').onclick = () => goDay(addDays(day,1));
 $('today').onclick = () => goDay(iso(new Date()));
 $('datepick').onchange = e => { if (e.target.value) goDay(e.target.value); };
 $('copyprev').onclick = copyPrev;
+
+/* ---------- WhatsApp report ---------- */
+const ICON = {hijau:'🟢', kuning:'🟡', merah:'🔴'};
+function waReport(){
+  const total = tasks.length, done = tasks.filter(t => t.done).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const red = tasks.filter(t => t.status === 'merah'), yellow = tasks.filter(t => t.status === 'kuning');
+  const L = [];
+  L.push('*LAPORAN HARIAN OERIP INDONESIA*');
+  L.push(longDate(day));
+  L.push('');
+  if (!total) { L.push('Belum ada tugas tercatat untuk hari ini.'); return L.join('\n'); }
+  L.push(`Selesai: *${done} dari ${total} tugas (${pct}%)*`);
+  if (red.length || yellow.length) L.push([red.length ? `🔴 Merah: ${red.length}` : '', yellow.length ? `🟡 Kuning: ${yellow.length}` : ''].filter(Boolean).join(' · '));
+  const attention = tasks.filter(t => t.status === 'merah' || t.status === 'kuning' || (t.note && !t.done))
+    .sort((a,b) => (b.status === 'merah') - (a.status === 'merah'));
+  if (attention.length) {
+    L.push(''); L.push('*Perlu perhatian*');
+    for (const t of attention) {
+      const dv = DIVS.find(d => d.k === t.div);
+      L.push(`${ICON[t.status] || '📝'} ${dv ? dv.n : t.div}: ${t.text}${t.done ? ' (selesai)' : ''}`);
+      if (t.note) L.push(`    _Catatan: ${t.note}_`);
+    }
+  }
+  L.push(''); L.push('*Per divisi*');
+  for (const d of DIVS) {
+    const list = tasks.filter(t => t.div === d.k).sort((a,b) => a.text.localeCompare(b.text));
+    if (!list.length) continue;
+    const dn = list.filter(t => t.done).length;
+    L.push(`${dn === list.length ? '✅' : '⏳'} *${d.n}* ${dn}/${list.length}`);
+    const open = list.filter(t => !t.done);
+    for (const t of open.slice(0, 5)) L.push(`    • belum: ${t.text}`);
+    if (open.length > 5) L.push(`    • +${open.length - 5} tugas lain belum selesai`);
+  }
+  L.push(''); L.push('_Dikirim dari Checklist Laporan Harian PA_');
+  return L.join('\n');
+}
+$('wa-open').onclick = () => {
+  $('wa-text').value = waReport();
+  $('wa-msg').textContent = '“Buka WhatsApp” membuka WhatsApp dengan teks ini, lalu pilih grup atau orang tujuan.';
+  const dlg = $('wa-dialog');
+  if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+};
+$('wa-copy').onclick = async () => {
+  const ta = $('wa-text');
+  try { await navigator.clipboard.writeText(ta.value); $('wa-msg').textContent = 'Teks tersalin. Tempel di grup WhatsApp.'; }
+  catch { ta.select(); $('wa-msg').textContent = 'Teks sudah dipilih. Tekan Ctrl+C (atau Salin) lalu tempel di WhatsApp.'; }
+};
+$('wa-send').onclick = () => {
+  window.open('https://wa.me/?text=' + encodeURIComponent($('wa-text').value), '_blank', 'noopener');
+};
 $('wprev').onclick = () => { week = addDays(week,-7); renderWeek(); loadWeek(); };
 $('wnext').onclick = () => { week = addDays(week,7); renderWeek(); loadWeek(); };
 $('thisweek').onclick = () => { week = monday(iso(new Date())); renderWeek(); loadWeek(); };
