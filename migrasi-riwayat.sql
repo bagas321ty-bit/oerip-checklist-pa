@@ -36,8 +36,9 @@ declare
   v_parts  text[] := '{}';
 begin
   -- Pembuatan tugas rutin otomatis tidak perlu dicatat satu per satu
-  if tg_table_name = 'tasks' and tg_op = 'INSERT' and new.template_id is not null then
-    return new;
+  -- (dicek bertingkat: PL/pgSQL tidak berhenti di 'and', jadi kolom template_id hanya dibaca untuk tabel tasks)
+  if tg_table_name = 'tasks' and tg_op = 'INSERT' then
+    if new.template_id is not null then return new; end if;
   end if;
 
   if tg_table_name = 'tasks' then

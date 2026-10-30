@@ -557,7 +557,10 @@ $('memberform').addEventListener('submit', async e => {
     const r = await akun({ action:'create', username, nama, password });
     if (!r.ok) return mnotice(r.msg, 'err');
     const { error } = await sb.from('members').upsert({ email: toLogin(username), nama, peran });
-    if (error) return mnotice('Akun login dibuat, tetapi gagal didaftarkan sebagai anggota. Coba simpan lagi.', 'err');
+    if (error) {
+      await akun({ action:'delete', username });   // batalkan akun login supaya username bisa dipakai lagi
+      return mnotice('Akun gagal didaftarkan sebagai anggota, jadi pembuatan akun dibatalkan. Coba lagi.', 'err');
+    }
     mnotice(`Akun ${nama} siap. Login: username “${username}” dengan kata sandi awal yang tadi diisi. Minta dia menggantinya lewat tombol “Ganti kata sandi”.`);
     $('memberform').reset(); loadMembers();
   } finally { btn.disabled = false; btn.textContent = 'Buat akun'; }
