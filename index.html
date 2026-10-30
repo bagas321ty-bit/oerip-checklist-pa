@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Checklist Harian PA Oerip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+
+/* Layout: sticky day bar, then one card per divisi in a responsive grid; a second view holds the weekly recap table. */
+:root{
+  --bg:#F4F2EE; --surface:#FFFFFF; --sunk:#ECE8E1; --line:#DDD6CB;
+  --fg:#1F1B17; --muted:#6B6259; --indigo:#2D3B66; --indigo-soft:#E4E8F3; --soga:#8A4B2A;
+  --good:#2F7A4B; --good-bg:#E2F0E6; --warn:#A87410; --warn-bg:#F7EDD2; --bad:#B23A2B; --bad-bg:#F6DEDA;
+  --font:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15130F; --surface:#1F1C18; --sunk:#29251F; --line:#3A342C;
+  --fg:#EFE9E0; --muted:#A79C8E; --indigo:#A9B8E6; --indigo-soft:#262E45; --soga:#D9976D;
+  --good:#6FC28F; --good-bg:#1E3326; --warn:#E3B653; --warn-bg:#3A2F14; --bad:#EE8A7C; --bad-bg:#3E211C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15130F; --surface:#1F1C18; --sunk:#29251F; --line:#3A342C;
+  --fg:#EFE9E0; --muted:#A79C8E; --indigo:#A9B8E6; --indigo-soft:#262E45; --soga:#D9976D;
+  --good:#6FC28F; --good-bg:#1E3326; --warn:#E3B653; --warn-bg:#3A2F14; --bad:#EE8A7C; --bad-bg:#3E211C; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{color:var(--fg);font:14px/1.45 var(--font);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+header.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-block:14px}
+.brand{display:flex;flex-direction:column;gap:2px;margin-right:auto;min-width:0}
+.brand small{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--soga);font-weight:700}
+.brand h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.views{display:flex;background:var(--sunk);border-radius:999px;padding:3px}
+.views button{border:0;background:none;padding:7px 14px;border-radius:999px;font-weight:600;color:var(--muted)}
+.views button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+.daybar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:18px 6px}
+.nav{display:flex;align-items:center;gap:6px}
+.iconbtn{border:1px solid var(--line);background:var(--surface);width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:16px;line-height:1}
+.textbtn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;font-weight:600;font-size:13px}
+.textbtn:disabled{opacity:.45;cursor:default}
+.daytitle{font-size:22px;font-weight:800;letter-spacing:-.015em;margin:0}
+.daytitle span{display:block;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+input[type=date]{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px;font-size:13px}
+.spacer{flex:1}
+.summary{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.meter{width:180px;max-width:40vw;height:8px;background:var(--sunk);border-radius:99px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--indigo);border-radius:99px;transition:width .3s}
+.summary b{font-variant-numeric:tabular-nums;font-size:15px}
+.counts{display:flex;gap:6px}
+.notice{margin:10px 0 0;padding:10px 14px;border-radius:var(--r);background:var(--indigo-soft);color:var(--fg);font-size:13px}
+.notice[data-kind="err"]{background:var(--bad-bg)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;padding-block:16px 48px}
+@media (max-width:420px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0}
+.card-h{display:flex;align-items:baseline;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.card-h h2{font-size:15px;margin:0;font-weight:700}
+.card-h .who{font-size:12px;color:var(--muted);margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-h .frac{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tasks{list-style:none;margin:0;padding:6px 0}
+.empty{padding:14px 16px;color:var(--muted);font-size:13px}
+.task{padding:8px 16px;display:grid;grid-template-columns:22px 1fr auto;gap:4px 10px;align-items:start;border-left:3px solid transparent}
+.task[data-status="hijau"]{border-left-color:var(--good)}
+.task[data-status="kuning"]{border-left-color:var(--warn)}
+.task[data-status="merah"]{border-left-color:var(--bad)}
+.task + .task{border-top:1px dashed var(--line)}
+.task input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--indigo)}
+.ttext{min-width:0;overflow-wrap:anywhere}
+.ttext.done{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted)}
+.meta{grid-column:2/4;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.chips{display:flex;gap:4px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;color:var(--muted)}
+.chip[data-v="hijau"][aria-pressed="true"]{background:var(--good-bg);border-color:var(--good);color:var(--good)}
+.chip[data-v="kuning"][aria-pressed="true"]{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.chip[data-v="merah"][aria-pressed="true"]{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.chip:disabled{cursor:default}
+.by{font-size:11.5px;color:var(--muted)}
+.note{grid-column:2/4;width:100%;min-height:32px;resize:vertical;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 9px;font-size:12.5px}
+.note:read-only{background:transparent;border-style:dashed}
+.notetxt{grid-column:2/4;font-size:12.5px;color:var(--muted);background:var(--sunk);border-radius:8px;padding:6px 9px;overflow-wrap:anywhere}
+.del{border:0;background:none;color:var(--muted);font-size:12px;padding:2px 4px;border-radius:6px}
+.del:hover{color:var(--bad)}
+.confirm{display:flex;gap:6px;align-items:center;font-size:12px}
+.confirm button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600}
+.confirm .yes{background:var(--bad);border-color:var(--bad);color:#fff}
+.add{display:flex;gap:8px;padding:10px 16px 14px;border-top:1px solid var(--line);margin-top:auto}
+.add input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;font-size:13px}
+.add button{border:0;background:var(--indigo);color:var(--surface);border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);padding-top:4px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
+
+.rekap{padding-block:16px 48px}
+.rekap h2{font-size:20px;margin:0 0 4px;font-weight:800}
+.rekap p.sub{margin:0 0 16px;color:var(--muted)}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-variant-numeric:tabular-nums}
+th,td{padding:10px 12px;text-align:center;border-bottom:1px solid var(--line);font-size:13px}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--sunk)}
+th:first-child,td:first-child{text-align:left}
+td.day b{font-family:var(--mono);font-weight:500}
+td.day small{display:block;color:var(--muted);font-size:11px}
+td.none{color:var(--line)}
+tr.total td{font-weight:700;background:var(--sunk)}
+.pct{display:inline-block;min-width:44px;padding:2px 8px;border-radius:999px;font-weight:700;font-size:12px}
+.pct.hi{background:var(--good-bg);color:var(--good)} .pct.mid{background:var(--warn-bg);color:var(--warn)} .pct.lo{background:var(--bad-bg);color:var(--bad)}
+.flags{display:flex;gap:4px;justify-content:center}
+.flag{font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px}
+.flag.k{background:var(--warn-bg);color:var(--warn)} .flag.m{background:var(--bad-bg);color:var(--bad)}
+.issues{margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.issues h3{margin:0 0 8px;font-size:14px}
+.issues ul{margin:0;padding-left:18px}
+.issues li{margin:4px 0;overflow-wrap:anywhere}
+.issues li small{color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.account{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
+.login{min-height:100vh;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.loginbox{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px;display:flex;flex-direction:column;gap:8px}
+.loginbox .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--soga);font-weight:700}
+.loginbox h1{margin:0 0 4px;font-size:22px;font-weight:800;text-wrap:balance}
+.loginbox .muted{color:var(--muted);margin:0 0 10px;font-size:13px}
+.loginbox label{font-weight:600;font-size:12.5px;margin-top:6px}
+.loginbox input{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 12px;font-size:14px}
+.loginbox button{margin-top:14px;border:0;background:var(--indigo);color:var(--surface);border-radius:8px;padding:11px;font-weight:700}
+.loginbox button:disabled{opacity:.6}
+.linkbtn{background:none!important;color:var(--indigo)!important;margin-top:4px!important;padding:6px!important;font-weight:600!important;font-size:13px}
+.memberform{display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.memberform div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.memberform label{font-size:12px;font-weight:600;color:var(--muted)}
+.memberform input,.memberform select,table.members select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;font-size:13px;min-width:0}
+.memberform button{border:0;background:var(--indigo);color:var(--surface);border-radius:8px;padding:9px 14px;font-weight:700}
+@media (max-width:720px){.memberform{grid-template-columns:1fr}}
+table.members{min-width:560px}
+table.members td,table.members th{text-align:left}
+.loginerr[data-kind="ok"]{background:var(--good-bg);color:var(--good)}
+.loginerr{background:var(--bad-bg);color:var(--bad);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0 0}
+
+</style>
+</head>
+<body>
+<section id="login" class="login" hidden>
+  <form id="loginform" class="loginbox">
+    <small class="eyebrow">Oerip Indonesia · Personal Assistant</small>
+    <h1>Checklist Laporan Harian</h1>
+    <p class="muted" id="loginhint">Masuk dengan email yang sudah didaftarkan CEO.</p>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="password">Kata sandi</label>
+    <input id="password" type="password" autocomplete="current-password" minlength="6" required>
+    <button type="submit" id="loginbtn">Masuk</button>
+    <button type="button" class="linkbtn" id="togglemode">Belum punya kata sandi? Buat akun</button>
+    <p class="loginerr" id="loginerr" hidden></p>
+  </form>
+</section>
+
+<div id="app" hidden>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><small>Oerip Indonesia · Personal Assistant</small><h1>Checklist Laporan Harian</h1></div>
+    <div class="views" role="group" aria-label="Tampilan">
+      <button id="v-harian" aria-pressed="true">Harian</button>
+      <button id="v-rekap" aria-pressed="false">Rekap mingguan</button>
+      <button id="v-anggota" aria-pressed="false" hidden>Kelola anggota</button>
+    </div>
+    <div class="account"><span id="whoami"></span><button class="textbtn" id="logout">Keluar</button></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="view-harian">
+    <div class="daybar">
+      <div class="nav">
+        <button class="iconbtn" id="prev" aria-label="Hari sebelumnya">‹</button>
+        <button class="iconbtn" id="next" aria-label="Hari berikutnya">›</button>
+      </div>
+      <h2 class="daytitle" id="daytitle">—</h2>
+      <input type="date" id="datepick" aria-label="Pilih tanggal">
+      <button class="textbtn" id="today">Hari ini</button>
+      <div class="spacer"></div>
+      <div class="summary" aria-live="polite">
+        <div class="meter"><i id="meter" style="width:0"></i></div>
+        <b id="sumtxt">0 / 0 selesai</b>
+        <div class="counts" id="counts"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--good)"></i>Hijau: sesuai rencana</span>
+      <span><i class="dot" style="background:var(--warn)"></i>Kuning: berisiko, sudah ada perbaikan</span>
+      <span><i class="dot" style="background:var(--bad)"></i>Merah: terhambat, butuh keputusan</span>
+      <button class="textbtn" id="copyprev" hidden>Salin tugas dari hari kerja sebelumnya</button>
+    </div>
+    <p class="notice" id="notice" hidden></p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section id="view-rekap" class="rekap" hidden>
+    <div class="daybar" style="padding-top:0">
+      <div class="nav">
+        <button class="iconbtn" id="wprev" aria-label="Minggu sebelumnya">‹</button>
+        <button class="iconbtn" id="wnext" aria-label="Minggu berikutnya">›</button>
+      </div>
+      <h2 class="daytitle" id="weektitle">—</h2>
+      <button class="textbtn" id="thisweek">Minggu ini</button>
+    </div>
+    <p class="sub">Angka di tiap sel: tugas selesai / total tugas hari itu. Persentase dihitung dari semua tugas divisi selama seminggu.</p>
+    <div class="tablewrap"><table id="rekaptable"></table></div>
+    <div class="issues" id="issues"></div>
+  </section>
+  <section id="view-anggota" class="rekap" hidden>
+    <h2>Kelola anggota</h2>
+    <p class="sub">Daftarkan email karyawan di sini. Setelah itu, karyawan membuka aplikasi, memilih “Buat akun”, dan membuat kata sandinya sendiri dengan email yang sama.</p>
+    <form id="memberform" class="memberform">
+      <div><label for="m-nama">Nama</label><input id="m-nama" required maxlength="80" placeholder="Contoh: Handayani"></div>
+      <div><label for="m-email">Email</label><input id="m-email" type="email" required placeholder="nama@email.com"></div>
+      <div><label for="m-peran">Hak akses</label>
+        <select id="m-peran"><option value="edit">Bisa mengubah</option><option value="lihat">Lihat saja</option><option value="admin">Admin (bisa kelola anggota)</option></select></div>
+      <button type="submit">Simpan anggota</button>
+    </form>
+    <p class="notice" id="mnotice" hidden></p>
+    <div class="tablewrap"><table id="membertable" class="members"></table></div>
+  </section>
+</main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
