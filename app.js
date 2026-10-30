@@ -292,7 +292,7 @@ $('loginform').addEventListener('submit', async e => {
   const email = $('email').value.trim().toLowerCase(), password = $('password').value;
   const showErr = (m, kind) => { $('loginerr').textContent = m; $('loginerr').dataset.kind = kind || ''; $('loginerr').hidden = false; };
   if (signupMode) {
-    const { data, error } = await sb.auth.signUp({ email, password });
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
     $('loginbtn').disabled = false;
     if (error) return showErr(/registered|exists/i.test(error.message) ? 'Email ini sudah punya akun. Pilih “Sudah punya akun? Masuk”.' : /password/i.test(error.message) ? 'Kata sandi minimal 6 karakter.' : 'Akun gagal dibuat. Coba lagi.');
     if (!data.session) return showErr('Akun dibuat. Buka email Anda dan klik tautan konfirmasi, lalu masuk.', 'ok');
