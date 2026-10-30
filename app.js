@@ -28,7 +28,12 @@ if (!window.supabase || !cfg.SUPABASE_URL || cfg.SUPABASE_URL.includes('ISI-PROJ
   document.body.innerHTML = '<p style="padding:24px;font-family:sans-serif">Aplikasi belum disambungkan ke Supabase. Isi SUPABASE_URL dan SUPABASE_ANON_KEY di file config.js.</p>';
   return;
 }
-const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+// Kunci antar-tab bawaan supabase-js bisa macet di Safari bila aplikasi terbuka di beberapa tab,
+// sehingga halaman tidak pernah tampil. Pakai kunci sederhana di dalam tab saja.
+const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+  auth: { lock: async (_name, _timeout, fn) => await fn() }
+});
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
 let canWrite = false, isAdmin = false, myEmail = '';
 let day = iso(new Date());
@@ -605,10 +610,24 @@ $('pw-form').addEventListener('submit', async e => {
 });
 sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') openPw(true); });
 async function start(){
-  const { data: { session } } = await sb.auth.getSession();
+  let session = null;
+  try { ({ data: { session } } = await withTimeout(sb.auth.getSession(), 6000)); }
+  catch {
+    try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch {}
+    $('login').hidden = false; $('app').hidden = true;
+    $('loginerr').textContent = 'Sesi login lama bermasalah dan sudah dibersihkan. Silakan masuk lagi.'; $('loginerr').dataset.kind = ''; $('loginerr').hidden = false;
+    return;
+  }
   if (!session) { $('login').hidden = false; $('app').hidden = true; return; }
   const email = (session.user.email || '').toLowerCase();
-  const { data: me, error } = await sb.from('members').select('nama,peran').ilike('email', email).maybeSingle();
+  let me = null, error = null;
+  try { ({ data: me, error } = await withTimeout(sb.from('members').select('nama,peran').ilike('email', email).maybeSingle(), 10000)); }
+  catch (e) { error = e; }
+  if (error && !me) {
+    $('login').hidden = false; $('app').hidden = true;
+    $('loginerr').textContent = 'Data akun belum termuat karena koneksi bermasalah. Periksa internet lalu muat ulang halaman.'; $('loginerr').dataset.kind = ''; $('loginerr').hidden = false;
+    return;
+  }
   if (error || !me) {
     $('login').hidden = false; $('app').hidden = true;
     $('loginerr').textContent = 'Akun ini belum didaftarkan sebagai anggota. Hubungi admin.'; $('loginerr').dataset.kind=''; $('loginerr').hidden = false;
